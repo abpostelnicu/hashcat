@@ -43,22 +43,13 @@ int dictstat_init (hashcat_ctx_t *hashcat_ctx)
 
   if (user_options->attack_mode == ATTACK_MODE_BF) return 0;
 
+  if (user_options->hash_mode == 3000) return 0; // this mode virtually creates words in the wordlists
+
   dictstat_ctx->enabled  = true;
   dictstat_ctx->base     = (dictstat_t *) hccalloc (MAX_DICTSTAT, sizeof (dictstat_t));
   dictstat_ctx->cnt      = 0;
 
   hc_asprintf (&dictstat_ctx->filename, "%s/hashcat.dictstat", folder_config->profile_dir);
-
-  FILE *fp = fopen (dictstat_ctx->filename, "ab");
-
-  if (fp == NULL)
-  {
-    event_log_error (hashcat_ctx, "%s: %m", dictstat_ctx->filename);
-
-    return -1;
-  }
-
-  fclose (fp);
 
   return 0;
 }
@@ -121,7 +112,7 @@ int dictstat_write (hashcat_ctx_t *hashcat_ctx)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", dictstat_ctx->filename);
+    event_log_error (hashcat_ctx, "%s: %s", dictstat_ctx->filename, strerror (errno));
 
     return -1;
   }
@@ -130,7 +121,7 @@ int dictstat_write (hashcat_ctx_t *hashcat_ctx)
   {
     fclose (fp);
 
-    event_log_error (hashcat_ctx, "%s: %m", dictstat_ctx->filename);
+    event_log_error (hashcat_ctx, "%s: %s", dictstat_ctx->filename, strerror (errno));
 
     return -1;
   }

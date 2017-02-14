@@ -39,6 +39,7 @@
 #include "opencl.h"
 #include "outfile_check.h"
 #include "outfile.h"
+#include "pidfile.h"
 #include "potfile.h"
 #include "restore.h"
 #include "rp.h"
@@ -208,8 +209,6 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   status_ctx->runtime_start = runtime_start;
 
-  status_ctx->prepare_time = runtime_start - status_ctx->prepare_start;
-
   /**
    * create cracker threads
    */
@@ -243,8 +242,15 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   hcfree (threads_param);
 
+  if ((status_ctx->devices_status == STATUS_RUNNING) && (status_ctx->checkpoint_shutdown == true))
+  {
+    myabort_checkpoint (hashcat_ctx);
+  }
+
   if ((status_ctx->devices_status != STATUS_CRACKED)
    && (status_ctx->devices_status != STATUS_ABORTED)
+   && (status_ctx->devices_status != STATUS_ABORTED_CHECKPOINT)
+   && (status_ctx->devices_status != STATUS_ABORTED_RUNTIME)
    && (status_ctx->devices_status != STATUS_QUIT)
    && (status_ctx->devices_status != STATUS_BYPASS))
   {
@@ -261,8 +267,6 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
 
   logfile_sub_uint (runtime_start);
   logfile_sub_uint (runtime_stop);
-
-  time (&status_ctx->prepare_start);
 
   hashcat_get_status (hashcat_ctx, status_ctx->hashcat_status_final);
 
@@ -396,12 +400,6 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
   status_ctx->run_thread_level2 = true;
 
   /**
-   * setup prepare timer
-   */
-
-  time (&status_ctx->prepare_start);
-
-  /**
    * setup variables and buffers depending on hash_mode
    */
 
@@ -445,7 +443,17 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
   {
     EVENT (EVENT_POTFILE_REMOVE_PARSE_PRE);
 
+    if (user_options->loopback == true)
+    {
+      loopback_write_open (hashcat_ctx);
+    }
+
     potfile_remove_parse (hashcat_ctx);
+
+    if (user_options->loopback == true)
+    {
+      loopback_write_close (hashcat_ctx);
+    }
 
     EVENT (EVENT_POTFILE_REMOVE_PARSE_POST);
   }
@@ -604,6 +612,13 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
 
   EVENT (EVENT_OUTERLOOP_MAINSCREEN);
 
+
+  /**
+   * Tell user about cracked hashes by potfile
+   */
+
+  EVENT (EVENT_POTFILE_NUM_CRACKED);
+
   /**
    * inform the user
    */
@@ -654,6 +669,17 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
   }
 
   /**
+   * maybe all hashes were cracked now (as after potfile checks), we can exit here
+   */
+
+  if (status_ctx->devices_status == STATUS_CRACKED)
+  {
+    EVENT (EVENT_WEAK_HASH_ALL_CRACKED);
+
+    return 0;
+  }
+
+  /**
    * status and monitor threads
    */
 
@@ -680,12 +706,6 @@ static int outer_loop (hashcat_ctx_t *hashcat_ctx)
       inner_threads_cnt++;
     }
   }
-
-  /**
-   * Tell user about cracked hashes by potfile
-   */
-
-  EVENT (EVENT_POTFILE_NUM_CRACKED);
 
   // main call
 
@@ -790,6 +810,7 @@ int hashcat_init (hashcat_ctx_t *hashcat_ctx, void (*event) (const u32, struct h
   hashcat_ctx->opencl_ctx         = (opencl_ctx_t *)          hcmalloc (sizeof (opencl_ctx_t));
   hashcat_ctx->outcheck_ctx       = (outcheck_ctx_t *)        hcmalloc (sizeof (outcheck_ctx_t));
   hashcat_ctx->outfile_ctx        = (outfile_ctx_t *)         hcmalloc (sizeof (outfile_ctx_t));
+  hashcat_ctx->pidfile_ctx        = (pidfile_ctx_t *)         hcmalloc (sizeof (pidfile_ctx_t));
   hashcat_ctx->potfile_ctx        = (potfile_ctx_t *)         hcmalloc (sizeof (potfile_ctx_t));
   hashcat_ctx->restore_ctx        = (restore_ctx_t *)         hcmalloc (sizeof (restore_ctx_t));
   hashcat_ctx->status_ctx         = (status_ctx_t *)          hcmalloc (sizeof (status_ctx_t));
@@ -821,6 +842,7 @@ void hashcat_destroy (hashcat_ctx_t *hashcat_ctx)
   hcfree (hashcat_ctx->opencl_ctx);
   hcfree (hashcat_ctx->outcheck_ctx);
   hcfree (hashcat_ctx->outfile_ctx);
+  hcfree (hashcat_ctx->pidfile_ctx);
   hcfree (hashcat_ctx->potfile_ctx);
   hcfree (hashcat_ctx->restore_ctx);
   hcfree (hashcat_ctx->status_ctx);
@@ -860,6 +882,14 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, char *install_folder, char
   const int rc_folder_config_init = folder_config_init (hashcat_ctx, install_folder, shared_folder);
 
   if (rc_folder_config_init == -1) return -1;
+
+  /**
+   * pidfile
+   */
+
+  const int rc_pidfile_init = pidfile_ctx_init (hashcat_ctx);
+
+  if (rc_pidfile_init == -1) return -1;
 
   /**
    * restore
@@ -942,14 +972,6 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, char *install_folder, char
   if (rc_outfile_init == -1) return -1;
 
   /**
-   * Sanity check for hashfile vs outfile (should not point to the same physical file)
-   */
-
-  const int rc_outfile_and_hashfile = outfile_and_hashfile (hashcat_ctx);
-
-  if (rc_outfile_and_hashfile == -1) return -1;
-
-  /**
    * potfile init
    * this is only setting path because potfile can be used in read and write mode depending on user options
    * plus it depends on hash_mode, so we continue using it in outer_loop
@@ -984,6 +1006,14 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, char *install_folder, char
   if (rc_debugfile_init == -1) return -1;
 
   /**
+   * Try to detect if all the files we're going to use are accessible in the mode we want them
+   */
+
+  const int rc_user_options_check_files = user_options_check_files (hashcat_ctx);
+
+  if (rc_user_options_check_files == -1) return -1;
+
+  /**
    * Init OpenCL library loader
    */
 
@@ -1006,6 +1036,8 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, char *install_folder, char
   const int rc_hwmon_init = hwmon_ctx_init (hashcat_ctx);
 
   if (rc_hwmon_init == -1) return -1;
+
+  // done
 
   return 0;
 }
@@ -1083,6 +1115,10 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
 
   unlink_restore (hashcat_ctx);
 
+  // unlink the pidfile
+
+  unlink_pidfile (hashcat_ctx);
+
   // final update dictionary cache
 
   dictstat_write (hashcat_ctx);
@@ -1100,10 +1136,12 @@ int hashcat_session_execute (hashcat_ctx_t *hashcat_ctx)
 
   if (rc_final == 0)
   {
-    if (status_ctx->devices_status == STATUS_ABORTED)   rc_final = 2;
-    if (status_ctx->devices_status == STATUS_QUIT)      rc_final = 2;
-    if (status_ctx->devices_status == STATUS_EXHAUSTED) rc_final = 1;
-    if (status_ctx->devices_status == STATUS_CRACKED)   rc_final = 0;
+    if (status_ctx->devices_status == STATUS_ABORTED_RUNTIME)     rc_final = 4;
+    if (status_ctx->devices_status == STATUS_ABORTED_CHECKPOINT)  rc_final = 3;
+    if (status_ctx->devices_status == STATUS_ABORTED)             rc_final = 2;
+    if (status_ctx->devices_status == STATUS_QUIT)                rc_final = 2;
+    if (status_ctx->devices_status == STATUS_EXHAUSTED)           rc_final = 1;
+    if (status_ctx->devices_status == STATUS_CRACKED)             rc_final = 0;
   }
 
   // done
@@ -1149,6 +1187,7 @@ int hashcat_session_destroy (hashcat_ctx_t *hashcat_ctx)
   opencl_ctx_devices_destroy (hashcat_ctx);
   outcheck_ctx_destroy       (hashcat_ctx);
   outfile_destroy            (hashcat_ctx);
+  pidfile_ctx_destroy        (hashcat_ctx);
   potfile_destroy            (hashcat_ctx);
   restore_ctx_destroy        (hashcat_ctx);
   tuning_db_destroy          (hashcat_ctx);

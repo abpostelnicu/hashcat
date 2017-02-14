@@ -14,7 +14,7 @@
 
 // sysfs functions
 
-static int sysfs_init (hashcat_ctx_t *hashcat_ctx)
+static bool sysfs_init (hashcat_ctx_t *hashcat_ctx)
 {
   hwmon_ctx_t *hwmon_ctx = hashcat_ctx->hwmon_ctx;
 
@@ -26,13 +26,11 @@ static int sysfs_init (hashcat_ctx_t *hashcat_ctx)
 
   snprintf (path, HCBUFSIZ_TINY - 1, "%s", SYS_BUS_PCI_DEVICES);
 
-  hc_stat_t s;
-
-  int rc = hc_stat (path, &s);
+  const bool r = hc_path_read (path);
 
   hcfree (path);
 
-  return rc;
+  return r;
 }
 
 static void sysfs_close (hashcat_ctx_t *hashcat_ctx)
@@ -111,7 +109,7 @@ static int hm_SYSFS_get_fan_speed_current (hashcat_ctx_t *hashcat_ctx, const int
 
   if (fd_cur == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path_cur);
+    event_log_error (hashcat_ctx, "%s: %s", path_cur, strerror (errno));
 
     return -1;
   }
@@ -133,7 +131,7 @@ static int hm_SYSFS_get_fan_speed_current (hashcat_ctx_t *hashcat_ctx, const int
 
   if (fd_max == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path_max);
+    event_log_error (hashcat_ctx, "%s: %s", path_max, strerror (errno));
 
     return -1;
   }
@@ -186,7 +184,7 @@ static int hm_SYSFS_set_fan_control (hashcat_ctx_t *hashcat_ctx, const int devic
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path);
+    event_log_error (hashcat_ctx, "%s: %s", path, strerror (errno));
 
     return -1;
   }
@@ -218,7 +216,7 @@ static int hm_SYSFS_set_fan_speed_target (hashcat_ctx_t *hashcat_ctx, const int 
 
   if (fd_max == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path_max);
+    event_log_error (hashcat_ctx, "%s: %s", path_max, strerror (errno));
 
     return -1;
   }
@@ -249,7 +247,7 @@ static int hm_SYSFS_set_fan_speed_target (hashcat_ctx_t *hashcat_ctx, const int 
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path);
+    event_log_error (hashcat_ctx, "%s: %s", path, strerror (errno));
 
     return -1;
   }
@@ -280,7 +278,7 @@ static int hm_SYSFS_get_temperature_current (hashcat_ctx_t *hashcat_ctx, const i
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path);
+    event_log_error (hashcat_ctx, "%s: %s", path, strerror (errno));
 
     return -1;
   }
@@ -321,12 +319,12 @@ static int hm_SYSFS_get_pp_dpm_sclk (hashcat_ctx_t *hashcat_ctx, const int devic
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path);
+    event_log_error (hashcat_ctx, "%s: %s", path, strerror (errno));
 
     return -1;
   }
 
-  int clock = 0;
+  int clockfreq = 0;
 
   while (!feof (fd))
   {
@@ -344,14 +342,14 @@ static int hm_SYSFS_get_pp_dpm_sclk (hashcat_ctx_t *hashcat_ctx, const int devic
 
     int profile = 0;
 
-    int rc = sscanf (ptr, "%d: %dMhz", &profile, &clock);
+    int rc = sscanf (ptr, "%d: %dMhz", &profile, &clockfreq);
 
     if (rc == 2) break;
   }
 
   fclose (fd);
 
-  *val = clock;
+  *val = clockfreq;
 
   hcfree (syspath);
 
@@ -374,12 +372,12 @@ static int hm_SYSFS_get_pp_dpm_mclk (hashcat_ctx_t *hashcat_ctx, const int devic
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path);
+    event_log_error (hashcat_ctx, "%s: %s", path, strerror (errno));
 
     return -1;
   }
 
-  int clock = 0;
+  int clockfreq = 0;
 
   while (!feof (fd))
   {
@@ -397,14 +395,14 @@ static int hm_SYSFS_get_pp_dpm_mclk (hashcat_ctx_t *hashcat_ctx, const int devic
 
     int profile = 0;
 
-    int rc = sscanf (ptr, "%d: %dMhz", &profile, &clock);
+    int rc = sscanf (ptr, "%d: %dMhz", &profile, &clockfreq);
 
     if (rc == 2) break;
   }
 
   fclose (fd);
 
-  *val = clock;
+  *val = clockfreq;
 
   hcfree (syspath);
 
@@ -427,7 +425,7 @@ static int hm_SYSFS_get_pp_dpm_pcie (hashcat_ctx_t *hashcat_ctx, const int devic
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path);
+    event_log_error (hashcat_ctx, "%s: %s", path, strerror (errno));
 
     return -1;
   }
@@ -481,7 +479,7 @@ static int hm_SYSFS_set_power_dpm_force_performance_level (hashcat_ctx_t *hashca
 
   if (fd == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", path);
+    event_log_error (hashcat_ctx, "%s: %s", path, strerror (errno));
 
     return -1;
   }
@@ -549,6 +547,51 @@ static int nvml_init (hashcat_ctx_t *hashcat_ctx)
     nvml->lib = hc_dlopen (Buffer);
 
     hcfree (Buffer);
+  }
+
+  #elif defined (__CYGWIN__)
+
+  nvml->lib = hc_dlopen("nvml.dll", RTLD_NOW);
+
+  if (!nvml->lib)
+  {
+    FILE *nvml_lib = fopen ("/proc/registry/HKEY_LOCAL_MACHINE/SOFTWARE/NVIDIA Corporation/Global/NVSMI/NVSMIPATH", "rb");
+
+    if (nvml_lib == NULL)
+    {
+      //if (user_options->quiet == false)
+      //  event_log_error (hashcat_ctx, "NVML library load failed: %m, proceed without NVML HWMon enabled");
+
+      return -1;
+    }
+
+    char *nvml_winpath, *nvml_cygpath;
+
+    nvml_winpath = (char *) hcmalloc (100);
+
+    fread (nvml_winpath, 100, 1, nvml_lib);
+
+    fclose (nvml_lib);
+
+    ssize_t size = cygwin_conv_path (CCP_WIN_A_TO_POSIX | CCP_PROC_CYGDRIVE, nvml_winpath, NULL, 0);
+
+    if (size > 0)
+    {
+      nvml_cygpath = (char *) hcmalloc (size + 9);
+
+      cygwin_conv_path (CCP_WIN_A_TO_POSIX | CCP_PROC_CYGDRIVE, nvml_winpath, nvml_cygpath, size);
+    }
+    else
+    {
+      //if (user_options->quiet == false)
+      //  event_log_error (hashcat_ctx, "Could not find NVML in the system, proceed without NVML HWMon enabled");
+
+      return -1;
+    }
+
+    strcat (nvml_cygpath, "/nvml.dll");
+
+    nvml->lib = hc_dlopen (nvml_cygpath, RTLD_NOW);
   }
 
   #elif defined (_POSIX)
@@ -669,13 +712,13 @@ static int hm_NVML_nvmlDeviceGetCount (hashcat_ctx_t *hashcat_ctx, unsigned int 
   return 0;
 }
 
-static int hm_NVML_nvmlDeviceGetHandleByIndex (hashcat_ctx_t *hashcat_ctx, unsigned int index, nvmlDevice_t *device)
+static int hm_NVML_nvmlDeviceGetHandleByIndex (hashcat_ctx_t *hashcat_ctx, unsigned int device_index, nvmlDevice_t *device)
 {
   hwmon_ctx_t *hwmon_ctx = hashcat_ctx->hwmon_ctx;
 
   NVML_PTR *nvml = hwmon_ctx->hm_nvml;
 
-  const nvmlReturn_t nvml_rc = nvml->nvmlDeviceGetHandleByIndex (index, device);
+  const nvmlReturn_t nvml_rc = nvml->nvmlDeviceGetHandleByIndex (device_index, device);
 
   if (nvml_rc != NVML_SUCCESS)
   {
@@ -793,13 +836,13 @@ static int hm_NVML_nvmlDeviceGetUtilizationRates (hashcat_ctx_t *hashcat_ctx, nv
   return 0;
 }
 
-static int hm_NVML_nvmlDeviceGetClockInfo (hashcat_ctx_t *hashcat_ctx, nvmlDevice_t device, nvmlClockType_t type, unsigned int *clock)
+static int hm_NVML_nvmlDeviceGetClockInfo (hashcat_ctx_t *hashcat_ctx, nvmlDevice_t device, nvmlClockType_t type, unsigned int *clockfreq)
 {
   hwmon_ctx_t *hwmon_ctx = hashcat_ctx->hwmon_ctx;
 
   NVML_PTR *nvml = hwmon_ctx->hm_nvml;
 
-  const nvmlReturn_t nvml_rc = nvml->nvmlDeviceGetClockInfo (device, type, clock);
+  const nvmlReturn_t nvml_rc = nvml->nvmlDeviceGetClockInfo (device, type, clockfreq);
 
   if (nvml_rc != NVML_SUCCESS)
   {
@@ -1054,13 +1097,27 @@ static int nvapi_init (hashcat_ctx_t *hashcat_ctx)
   memset (nvapi, 0, sizeof (NVAPI_PTR));
 
   #if defined (_WIN)
+
   #if defined (_WIN64)
   nvapi->lib = hc_dlopen ("nvapi64.dll");
   #else
   nvapi->lib = hc_dlopen ("nvapi.dll");
   #endif
+
+  #else
+
+  #if defined (__CYGWIN__)
+
+  #if defined (__x86_x64__)
+  nvapi->lib = hc_dlopen ("nvapi64.dll", RTLD_NOW);
+  #else
+  nvapi->lib = hc_dlopen ("nvapi.dll", RTLD_NOW);
+  #endif
+
   #else
   nvapi->lib = hc_dlopen ("nvapi.so", RTLD_NOW); // uhm yes, but .. yeah
+  #endif
+
   #endif
 
   if (!nvapi->lib)
@@ -1455,7 +1512,7 @@ static int hm_XNVCTRL_get_fan_control (hashcat_ctx_t *hashcat_ctx, const int gpu
     event_log_warning (hashcat_ctx, "This error typically occurs when you did not setup NVidia Coolbits.");
     event_log_warning (hashcat_ctx, "Run the following command to fix: sudo nvidia-xconfig --cool-bits=12");
     event_log_warning (hashcat_ctx, "Do not forget to restart X afterwards.");
-    event_log_warning (hashcat_ctx, "");
+    event_log_warning (hashcat_ctx, NULL);
 
     return -1;
   }
@@ -2783,16 +2840,16 @@ int hm_get_memoryspeed_with_device_id (hashcat_ctx_t *hashcat_ctx, const u32 dev
 
     if (hwmon_ctx->hm_sysfs)
     {
-      int clock;
+      int clockfreq;
 
-      if (hm_SYSFS_get_pp_dpm_mclk (hashcat_ctx, device_id, &clock) == -1)
+      if (hm_SYSFS_get_pp_dpm_mclk (hashcat_ctx, device_id, &clockfreq) == -1)
       {
         hwmon_ctx->hm_device[device_id].memoryspeed_get_supported = false;
 
         return -1;
       }
 
-      return clock;
+      return clockfreq;
     }
   }
 
@@ -2800,16 +2857,16 @@ int hm_get_memoryspeed_with_device_id (hashcat_ctx_t *hashcat_ctx, const u32 dev
   {
     if (hwmon_ctx->hm_nvml)
     {
-      unsigned int clock;
+      unsigned int clockfreq;
 
-      if (hm_NVML_nvmlDeviceGetClockInfo (hashcat_ctx, hwmon_ctx->hm_device[device_id].nvml, NVML_CLOCK_MEM, &clock) == -1)
+      if (hm_NVML_nvmlDeviceGetClockInfo (hashcat_ctx, hwmon_ctx->hm_device[device_id].nvml, NVML_CLOCK_MEM, &clockfreq) == -1)
       {
         hwmon_ctx->hm_device[device_id].memoryspeed_get_supported = false;
 
         return -1;
       }
 
-      return clock;
+      return clockfreq;
     }
   }
 
@@ -2849,16 +2906,16 @@ int hm_get_corespeed_with_device_id (hashcat_ctx_t *hashcat_ctx, const u32 devic
 
     if (hwmon_ctx->hm_sysfs)
     {
-      int clock;
+      int clockfreq;
 
-      if (hm_SYSFS_get_pp_dpm_sclk (hashcat_ctx, device_id, &clock) == -1)
+      if (hm_SYSFS_get_pp_dpm_sclk (hashcat_ctx, device_id, &clockfreq) == -1)
       {
         hwmon_ctx->hm_device[device_id].corespeed_get_supported = false;
 
         return -1;
       }
 
-      return clock;
+      return clockfreq;
     }
   }
 
@@ -2866,16 +2923,16 @@ int hm_get_corespeed_with_device_id (hashcat_ctx_t *hashcat_ctx, const u32 devic
   {
     if (hwmon_ctx->hm_nvml)
     {
-      unsigned int clock;
+      unsigned int clockfreq;
 
-      if (hm_NVML_nvmlDeviceGetClockInfo (hashcat_ctx, hwmon_ctx->hm_device[device_id].nvml, NVML_CLOCK_SM, &clock) == -1)
+      if (hm_NVML_nvmlDeviceGetClockInfo (hashcat_ctx, hwmon_ctx->hm_device[device_id].nvml, NVML_CLOCK_SM, &clockfreq) == -1)
       {
         hwmon_ctx->hm_device[device_id].corespeed_get_supported = false;
 
         return -1;
       }
 
-      return clock;
+      return clockfreq;
     }
   }
 
@@ -3281,7 +3338,7 @@ int hwmon_ctx_init (hashcat_ctx_t *hashcat_ctx)
   {
     hwmon_ctx->hm_sysfs = sysfs;
 
-    if (sysfs_init (hashcat_ctx) == -1)
+    if (sysfs_init (hashcat_ctx) == false)
     {
       hcfree (hwmon_ctx->hm_sysfs);
 

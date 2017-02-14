@@ -154,7 +154,7 @@ char *first_file_in_directory (const char *path)
 
     #endif
 
-      if ((strncmp (de->d_name, ".", strlen (de->d_name)) == 0) || (strncmp (de->d_name, "..", strlen (de->d_name)) == 0)) continue;
+      if (de->d_name[0] == '.') continue;
 
       first_file = strdup (de->d_name);
 
@@ -217,7 +217,7 @@ char **scan_directory (const char *path)
 
     #endif
 
-      if ((strncmp (de->d_name, ".", strlen (de->d_name)) == 0) || (strncmp (de->d_name, "..", strlen (de->d_name)) == 0)) continue;
+      if (de->d_name[0] == '.') continue;
 
       char *path_file;
 
@@ -256,8 +256,6 @@ char **scan_directory (const char *path)
 
   files[num_files] = NULL;
 
-  num_files++;
-
   hcfree (tmp_path);
 
   return (files);
@@ -278,7 +276,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
   if (getcwd (cwd, HCBUFSIZ_TINY - 1) == NULL)
   {
-    event_log_error (hashcat_ctx, "getcwd(): %m");
+    event_log_error (hashcat_ctx, "getcwd(): %s", strerror (errno));
 
     return -1;
   }
@@ -315,7 +313,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
   This causes invalid error out if install_folder (/usr/local/bin) does not exist
   if (resolved_install_folder == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", resolved_install_folder);
+    event_log_error (hashcat_ctx, "%s: %s", resolved_install_folder, strerror (errno));
 
     return -1;
   }
@@ -323,7 +321,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
   if (resolved_exec_path == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", resolved_exec_path);
+    event_log_error (hashcat_ctx, "%s: %s", resolved_exec_path, strerror (errno));
 
     return -1;
   }
@@ -412,7 +410,7 @@ int folder_config_init (hashcat_ctx_t *hashcat_ctx, MAYBE_UNUSED const char *ins
 
   if (realpath (cpath, cpath_real) == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", cpath);
+    event_log_error (hashcat_ctx, "%s: %s", cpath, strerror (errno));
 
     return -1;
   }

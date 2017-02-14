@@ -126,6 +126,7 @@ typedef enum event_identifier
   EVENT_SET_KERNEL_POWER_FINAL    = 0x000000c0,
   EVENT_WEAK_HASH_POST            = 0x000000d0,
   EVENT_WEAK_HASH_PRE             = 0x000000d1,
+  EVENT_WEAK_HASH_ALL_CRACKED     = 0x000000d2,
   EVENT_WORDLIST_CACHE_GENERATE   = 0x000000e0,
   EVENT_WORDLIST_CACHE_HIT        = 0x000000e1,
 
@@ -159,15 +160,17 @@ typedef enum vendor_id
 
 typedef enum status_rc
 {
-  STATUS_INIT            = 0,
-  STATUS_AUTOTUNE        = 1,
-  STATUS_RUNNING         = 2,
-  STATUS_PAUSED          = 3,
-  STATUS_EXHAUSTED       = 4,
-  STATUS_CRACKED         = 5,
-  STATUS_ABORTED         = 6,
-  STATUS_QUIT            = 7,
-  STATUS_BYPASS          = 8,
+  STATUS_INIT               = 0,
+  STATUS_AUTOTUNE           = 1,
+  STATUS_RUNNING            = 2,
+  STATUS_PAUSED             = 3,
+  STATUS_EXHAUSTED          = 4,
+  STATUS_CRACKED            = 5,
+  STATUS_ABORTED            = 6,
+  STATUS_QUIT               = 7,
+  STATUS_BYPASS             = 8,
+  STATUS_ABORTED_CHECKPOINT = 9,
+  STATUS_ABORTED_RUNTIME    = 10,
 
 } status_rc_t;
 
@@ -219,11 +222,13 @@ typedef enum combinator_mode
 
 typedef enum kern_run
 {
-  KERN_RUN_1    = 1000,
-  KERN_RUN_12   = 1500,
-  KERN_RUN_2    = 2000,
-  KERN_RUN_23   = 2500,
-  KERN_RUN_3    = 3000
+  KERN_RUN_1     = 1000,
+  KERN_RUN_12    = 1500,
+  KERN_RUN_2     = 2000,
+  KERN_RUN_23    = 2500,
+  KERN_RUN_3     = 3000,
+  KERN_RUN_INIT2 = 4000,
+  KERN_RUN_LOOP2 = 5000
 
 } kern_run_t;
 
@@ -333,35 +338,39 @@ typedef enum opti_type
 
 typedef enum opts_type
 {
-  OPTS_TYPE_PT_UNICODE        = (1 <<  0),
-  OPTS_TYPE_PT_UPPER          = (1 <<  1),
-  OPTS_TYPE_PT_LOWER          = (1 <<  2),
-  OPTS_TYPE_PT_ADD01          = (1 <<  3),
-  OPTS_TYPE_PT_ADD02          = (1 <<  4),
-  OPTS_TYPE_PT_ADD80          = (1 <<  5),
-  OPTS_TYPE_PT_ADDBITS14      = (1 <<  6),
-  OPTS_TYPE_PT_ADDBITS15      = (1 <<  7),
-  OPTS_TYPE_PT_GENERATE_LE    = (1 <<  8),
-  OPTS_TYPE_PT_GENERATE_BE    = (1 <<  9),
-  OPTS_TYPE_PT_NEVERCRACK     = (1 << 10), // if we want all possible results
-  OPTS_TYPE_PT_BITSLICE       = (1 << 11),
-  OPTS_TYPE_PT_ALWAYS_ASCII   = (1 << 12),
-  OPTS_TYPE_ST_UNICODE        = (1 << 13),
-  OPTS_TYPE_ST_UPPER          = (1 << 14),
-  OPTS_TYPE_ST_LOWER          = (1 << 15),
-  OPTS_TYPE_ST_ADD01          = (1 << 16),
-  OPTS_TYPE_ST_ADD02          = (1 << 17),
-  OPTS_TYPE_ST_ADD80          = (1 << 18),
-  OPTS_TYPE_ST_ADDBITS14      = (1 << 19),
-  OPTS_TYPE_ST_ADDBITS15      = (1 << 20),
-  OPTS_TYPE_ST_GENERATE_LE    = (1 << 21),
-  OPTS_TYPE_ST_GENERATE_BE    = (1 << 22),
-  OPTS_TYPE_ST_HEX            = (1 << 23),
-  OPTS_TYPE_ST_BASE64         = (1 << 24),
-  OPTS_TYPE_HASH_COPY         = (1 << 25),
-  OPTS_TYPE_HOOK12            = (1 << 26),
-  OPTS_TYPE_HOOK23            = (1 << 27),
-  OPTS_TYPE_BINARY_HASHFILE   = (1 << 28),
+  OPTS_TYPE_PT_UNICODE        = (1ULL <<  0),
+  OPTS_TYPE_PT_UPPER          = (1ULL <<  1),
+  OPTS_TYPE_PT_LOWER          = (1ULL <<  2),
+  OPTS_TYPE_PT_ADD01          = (1ULL <<  3),
+  OPTS_TYPE_PT_ADD02          = (1ULL <<  4),
+  OPTS_TYPE_PT_ADD80          = (1ULL <<  5),
+  OPTS_TYPE_PT_ADDBITS14      = (1ULL <<  6),
+  OPTS_TYPE_PT_ADDBITS15      = (1ULL <<  7),
+  OPTS_TYPE_PT_GENERATE_LE    = (1ULL <<  8),
+  OPTS_TYPE_PT_GENERATE_BE    = (1ULL <<  9),
+  OPTS_TYPE_PT_NEVERCRACK     = (1ULL << 10), // if we want all possible results
+  OPTS_TYPE_PT_BITSLICE       = (1ULL << 11),
+  OPTS_TYPE_PT_ALWAYS_ASCII   = (1ULL << 12),
+  OPTS_TYPE_ST_UNICODE        = (1ULL << 13),
+  OPTS_TYPE_ST_UPPER          = (1ULL << 14),
+  OPTS_TYPE_ST_LOWER          = (1ULL << 15),
+  OPTS_TYPE_ST_ADD01          = (1ULL << 16),
+  OPTS_TYPE_ST_ADD02          = (1ULL << 17),
+  OPTS_TYPE_ST_ADD80          = (1ULL << 18),
+  OPTS_TYPE_ST_ADDBITS14      = (1ULL << 19),
+  OPTS_TYPE_ST_ADDBITS15      = (1ULL << 20),
+  OPTS_TYPE_ST_GENERATE_LE    = (1ULL << 21),
+  OPTS_TYPE_ST_GENERATE_BE    = (1ULL << 22),
+  OPTS_TYPE_ST_HEX            = (1ULL << 23),
+  OPTS_TYPE_ST_BASE64         = (1ULL << 24),
+  OPTS_TYPE_ST_HASH_MD5       = (1ULL << 25),
+  OPTS_TYPE_HASH_COPY         = (1ULL << 26),
+  OPTS_TYPE_HASH_SPLIT        = (1ULL << 27),
+  OPTS_TYPE_HOOK12            = (1ULL << 28),
+  OPTS_TYPE_HOOK23            = (1ULL << 29),
+  OPTS_TYPE_INIT2             = (1ULL << 30),
+  OPTS_TYPE_LOOP2             = (1ULL << 31),
+  OPTS_TYPE_BINARY_HASHFILE   = (1ULL << 32),
 
 } opts_type_t;
 
@@ -426,8 +435,8 @@ typedef enum parser_rc
   PARSER_SALT_ITERATION      = -8,
   PARSER_SEPARATOR_UNMATCHED = -9,
   PARSER_SIGNATURE_UNMATCHED = -10,
-  PARSER_HCCAP_FILE_SIZE     = -11,
-  PARSER_HCCAP_EAPOL_SIZE    = -12,
+  PARSER_HCCAPX_FILE_SIZE    = -11,
+  PARSER_HCCAPX_EAPOL_LEN    = -12,
   PARSER_PSAFE2_FILE_SIZE    = -13,
   PARSER_PSAFE3_FILE_SIZE    = -14,
   PARSER_TC_FILE_SIZE        = -15,
@@ -436,6 +445,18 @@ typedef enum parser_rc
   PARSER_HASH_FILE           = -18,
   PARSER_HASH_ENCODING       = -19,
   PARSER_SALT_ENCODING       = -20,
+  PARSER_LUKS_FILE_SIZE      = -21,
+  PARSER_LUKS_MAGIC          = -22,
+  PARSER_LUKS_VERSION        = -23,
+  PARSER_LUKS_CIPHER_TYPE    = -24,
+  PARSER_LUKS_CIPHER_MODE    = -25,
+  PARSER_LUKS_HASH_TYPE      = -26,
+  PARSER_LUKS_KEY_SIZE       = -27,
+  PARSER_LUKS_KEY_DISABLED   = -28,
+  PARSER_LUKS_KEY_STRIPES    = -29,
+  PARSER_LUKS_HASH_CIPHER    = -30,
+  PARSER_HCCAPX_SIGNATURE    = -31,
+  PARSER_HCCAPX_VERSION      = -32,
   PARSER_UNKNOWN_ERROR       = -255
 
 } parser_rc_t;
@@ -634,6 +655,7 @@ typedef struct salt
 
   u32  salt_len;
   u32  salt_iter;
+  u32  salt_iter2;
   u32  salt_sign[2];
 
   u32  keccak_mdlen;
@@ -656,10 +678,29 @@ typedef struct user
 
 } user_t;
 
+typedef enum split_origin
+{
+  SPLIT_ORIGIN_NONE   = 0,
+  SPLIT_ORIGIN_LEFT   = 1,
+  SPLIT_ORIGIN_RIGHT  = 2,
+
+} split_origin_t;
+
+typedef struct split
+{
+  // some hashes, like lm, are split. this id point to the other hash of the group
+
+  int split_group;
+  int split_neighbor;
+  int split_origin;
+
+} split_t;
+
 typedef struct hashinfo
 {
-  user_t *user;
-  char   *orighash;
+  user_t  *user;
+  char    *orighash;
+  split_t *split;
 
 } hashinfo_t;
 
@@ -668,6 +709,7 @@ typedef struct hash
   void       *digest;
   salt_t     *salt;
   void       *esalt;
+  void       *hook_salt; // additional salt info only used by the hook (host)
   int         cracked;
   hashinfo_t *hash_info;
   char       *pw_buf;
@@ -716,6 +758,8 @@ typedef struct hashes
 
   void   *esalts_buf;
 
+  void   *hook_salts_buf;
+
   u32     hashes_cnt_orig;
   u32     hashes_cnt;
   hash_t *hashes_buf;
@@ -735,7 +779,7 @@ struct hashconfig
   u32   hash_type;
   u32   salt_type;
   u32   attack_exec;
-  u32   opts_type;
+  u64   opts_type;
   u32   kern_type;
   u32   dgst_size;
   u32   opti_type;
@@ -746,6 +790,7 @@ struct hashconfig
 
   u32   is_salted;
   u32   esalt_size;
+  u32   hook_salt_size;
   u32   tmp_size;
   u32   hook_size;
 
@@ -853,6 +898,8 @@ typedef struct hc_device_param
   u32     kernel_threads_by_wgs_kernel2;
   u32     kernel_threads_by_wgs_kernel23;
   u32     kernel_threads_by_wgs_kernel3;
+  u32     kernel_threads_by_wgs_kernel_init2;
+  u32     kernel_threads_by_wgs_kernel_loop2;
   u32     kernel_threads_by_wgs_kernel_mp;
   u32     kernel_threads_by_wgs_kernel_mp_l;
   u32     kernel_threads_by_wgs_kernel_mp_r;
@@ -912,6 +959,8 @@ typedef struct hc_device_param
   double  exec_us_prev1[EXPECTED_ITERATIONS];
   double  exec_us_prev2[EXPECTED_ITERATIONS];
   double  exec_us_prev3[EXPECTED_ITERATIONS];
+  double  exec_us_prev_init2[EXPECTED_ITERATIONS];
+  double  exec_us_prev_loop2[EXPECTED_ITERATIONS];
 
   // this is "current" speed
 
@@ -942,6 +991,8 @@ typedef struct hc_device_param
   cl_kernel  kernel2;
   cl_kernel  kernel23;
   cl_kernel  kernel3;
+  cl_kernel  kernel_init2;
+  cl_kernel  kernel_loop2;
   cl_kernel  kernel_mp;
   cl_kernel  kernel_mp_l;
   cl_kernel  kernel_mp_r;
@@ -1216,6 +1267,8 @@ typedef struct potfile_ctx
 {
   bool     enabled;
 
+  bool     keep_all_hashes;
+
   FILE    *fp;
   char    *filename;
 
@@ -1228,7 +1281,6 @@ typedef struct restore_data
 {
   int  version;
   char cwd[256];
-  u32  pid;
 
   u32  dicts_pos;
   u32  masks_pos;
@@ -1239,6 +1291,12 @@ typedef struct restore_data
   char **argv;
 
 } restore_data_t;
+
+typedef struct pidfile_data
+{
+  u32 pid;
+
+} pidfile_data_t;
 
 typedef struct restore_ctx
 {
@@ -1253,6 +1311,15 @@ typedef struct restore_ctx
   restore_data_t *rd;
 
 } restore_ctx_t;
+
+typedef struct pidfile_ctx
+{
+  u32   pid;
+  char *filename;
+
+  pidfile_data_t *pd;
+
+} pidfile_ctx_t;
 
 typedef struct kernel_rule
 {
@@ -1706,9 +1773,6 @@ typedef struct status_ctx
   time_t  runtime_start;
   time_t  runtime_stop;
 
-  time_t  prepare_start;
-  time_t  prepare_time;
-
   hc_timer_t timer_running;     // timer on current dict
   hc_timer_t timer_paused;      // timer on current dict
 
@@ -1794,6 +1858,7 @@ typedef struct hashcat_ctx
   opencl_ctx_t          *opencl_ctx;
   outcheck_ctx_t        *outcheck_ctx;
   outfile_ctx_t         *outfile_ctx;
+  pidfile_ctx_t         *pidfile_ctx;
   potfile_ctx_t         *potfile_ctx;
   restore_ctx_t         *restore_ctx;
   status_ctx_t          *status_ctx;

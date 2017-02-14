@@ -27,6 +27,8 @@ static const char ST_0005[] = "Cracked";
 static const char ST_0006[] = "Aborted";
 static const char ST_0007[] = "Quit";
 static const char ST_0008[] = "Bypass";
+static const char ST_0009[] = "Aborted (Checkpoint)";
+static const char ST_0010[] = "Aborted (Runtime)";
 static const char ST_9999[] = "Unknown! Bug!";
 
 static const char UNITS[7] = { ' ', 'k', 'M', 'G', 'T', 'P', 'E' };
@@ -196,15 +198,17 @@ char *status_get_status_string (const hashcat_ctx_t *hashcat_ctx)
 
   switch (devices_status)
   {
-    case STATUS_INIT:      return ((char *) ST_0000);
-    case STATUS_AUTOTUNE:  return ((char *) ST_0001);
-    case STATUS_RUNNING:   return ((char *) ST_0002);
-    case STATUS_PAUSED:    return ((char *) ST_0003);
-    case STATUS_EXHAUSTED: return ((char *) ST_0004);
-    case STATUS_CRACKED:   return ((char *) ST_0005);
-    case STATUS_ABORTED:   return ((char *) ST_0006);
-    case STATUS_QUIT:      return ((char *) ST_0007);
-    case STATUS_BYPASS:    return ((char *) ST_0008);
+    case STATUS_INIT:               return ((char *) ST_0000);
+    case STATUS_AUTOTUNE:           return ((char *) ST_0001);
+    case STATUS_RUNNING:            return ((char *) ST_0002);
+    case STATUS_PAUSED:             return ((char *) ST_0003);
+    case STATUS_EXHAUSTED:          return ((char *) ST_0004);
+    case STATUS_CRACKED:            return ((char *) ST_0005);
+    case STATUS_ABORTED:            return ((char *) ST_0006);
+    case STATUS_QUIT:               return ((char *) ST_0007);
+    case STATUS_BYPASS:             return ((char *) ST_0008);
+    case STATUS_ABORTED_CHECKPOINT: return ((char *) ST_0009);
+    case STATUS_ABORTED_RUNTIME:    return ((char *) ST_0010);
   }
 
   return ((char *) ST_9999);
@@ -237,20 +241,20 @@ char *status_get_hash_target (const hashcat_ctx_t *hashcat_ctx)
 
       wpa_t *wpa = (wpa_t *) hashes->esalts_buf;
 
-      snprintf (tmp_buf, HCBUFSIZ_TINY - 1, "%s (%02x:%02x:%02x:%02x:%02x:%02x <-> %02x:%02x:%02x:%02x:%02x:%02x)",
+      snprintf (tmp_buf, HCBUFSIZ_TINY - 1, "%s (AP:%02x:%02x:%02x:%02x:%02x:%02x STA:%02x:%02x:%02x:%02x:%02x:%02x)",
         (char *) hashes->salts_buf[0].salt_buf,
-        wpa->orig_mac1[0],
-        wpa->orig_mac1[1],
-        wpa->orig_mac1[2],
-        wpa->orig_mac1[3],
-        wpa->orig_mac1[4],
-        wpa->orig_mac1[5],
-        wpa->orig_mac2[0],
-        wpa->orig_mac2[1],
-        wpa->orig_mac2[2],
-        wpa->orig_mac2[3],
-        wpa->orig_mac2[4],
-        wpa->orig_mac2[5]);
+        wpa->orig_mac_ap[0],
+        wpa->orig_mac_ap[1],
+        wpa->orig_mac_ap[2],
+        wpa->orig_mac_ap[3],
+        wpa->orig_mac_ap[4],
+        wpa->orig_mac_ap[5],
+        wpa->orig_mac_sta[0],
+        wpa->orig_mac_sta[1],
+        wpa->orig_mac_sta[2],
+        wpa->orig_mac_sta[3],
+        wpa->orig_mac_sta[4],
+        wpa->orig_mac_sta[5]);
 
       return tmp_buf;
     }

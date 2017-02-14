@@ -1,10 +1,83 @@
-* changes v3.20 -> v3.21:
+* changes v3.30 -> v3.xx:
+
+##
+## Features
+##
+
+- Added support for parsing 7-Zip hashes with LZMA/LZMA2 compression indicator set to a non-zero value
+- Added support for decompressing LZMA1/LZMA2 data for -m 11600 = 7-Zip to validate the CRC
+- Added support for showing all user names with --show and --left if --username was specified
+- Added support for loading hccapx files
+- Added support for GPU temperature management on cygwin build
+- Added support for automatic merge of LM halfes when --show and --left is used
+
+##
+## Algorithms
+##
+
+- Added hash-mode  1411 = SSHA-256(Base64), LDAP {SSHA256}
+- Added hash-mode  3910 = md5(md5($pass).md5($salt))
+- Added hash-mode  4010 = md5($salt.md5($salt.$pass))
+- Added hash-mode  4110 = md5($salt.md5($pass.$salt))
+- Added hash-mode  4520 = sha1($salt.sha1($pass))
+- Added hash-mode  4522 = PunBB
+- Added hash-mode  7000 = Fortigate (FortiOS)
+- Added hash-mode 14600 = LUKS
+- Added hash-mode 14700 = iTunes Backup < 10.0
+- Added hash-mode 14800 = iTunes Backup >= 10.0
+- Added hash-mode 14900 = Skip32
+- Added hash-mode 15000 = FileZilla Server >= 0.9.55
+
+##
+## Workarounds
+##
+
+- Workaround added for AMDGPU-Pro OpenCL runtime: AES encrypt and decrypt Invertkey function was calculated wrong in certain cases
+- Workaround added for AMDGPU-Pro OpenCL runtime: RAR3 kernel require a volatile variable to work correctly
+
+##
+## Bugs
+##
+
+- Fixed truncation of password after position 32 with the combinator attack
+- Fixed DEScrypt cracking in BF mode in case the hashlist contains more than 16 times the same salt
+- Fixed use of option --keyspace in combination with -m 2500 (WPA)
+- Fixed rule 'O' (RULE_OP_MANGLE_OMIT) in host mode in case the offset + length parameter equals the length of the input word
+- Fixed duplicate detection for WPA handshakes with the same ESSID
+- Fixed clEnqueueNDRangeKernel(): CL_UNKNOWN_ERROR caused by an invalid work-item count during weak-hash-check
+- Fixed nvapi datatype definition for NvS32 and NvU32
+- Fixed WPA/WPA2 cracking in case eapol frame is >= 248 byte
+
+##
+## Technical
+##
+
+- Building: Add SHARED variable to Makefile to choose if hashcat is build as static or shared binary (using libhashcat.so/hashcat.dll)
+- Building: Removed the use of RPATH on linker level
+- Building: Replaced linking of CRT_glob.o with the use of int _dowildcard
+- Commandline: Do some checks related to custom-charset options if user specifies them
+- Events: Improved the maximum event message handling. event_log () will now also internally make sure that the message is properly terminated
+- Files: Do several file and folder checks on startup rather than when they are actually used to avoid related error after eventual intense operations
+- Helper: Added functions to check existence, type, read- and write-permissions and rewrite sources to use them instead of stat()
+- OpenCL Header: Updated CL_* errorcode to OpenCL 1.2 standard
+- OpenCL Runtime: Updated AMDGPU-Pro driver version check, do warn if version 16.60 is detected which is known to be broken
+- OpenCL Kernel: Renumbered hash-mode 7600 to 4521
+- OpenCL Device: Do a check on available constant memory size and abort if it's less than 64kB
+- Sessions: Move out handling of multiple instance from restore file into separate pidfile
+- Threads: Restored strerror as %m is unsupported by the BSDs
+- Wordlists: Disable dictstat handling for hash-mode 3000 as it virtually creates words in the wordlist which is not the case for other modes
+- WPA: Changed format for outfile and potfile from essid:mac1:mac2 to hash:essid
+- WPA: Changed format for outfile_check from essid:mac1:mac2 to hash
+
+* changes v3.20 -> v3.30:
 
 ##
 ## Features
 ##
 
 - Files: Use $HEX[...] in case the password includes the separater character, increases potfile reading performance
+- Files: If the user specifies a folder to scan for wordlists instead of directly a wordlist, then ignore the hidden files
+- Loopback: Include passwords for removed hashes present in the potfile to next loopback iteration
 - New option --progress-only: Quickly provides ideal progress step size and time to process on the user hashes and selected options, then quit
 - Status screen: Reenabled automatic status screen display in case of stdin used
 - Truecrypt/Veracrypt: Use CRC32 to verify headers instead of fuzzy logic, greatly reduces false positives from 18:2^48 to 3:2^64
@@ -21,20 +94,34 @@
 ##
 
 - Fixed buffer overflow in status screen display in case of long non-utf8 string
+- Fixed buffer overflow in plaintext parsing code: Leading to segfault
 - Fixed custom char parsing code in maskfiles in --increment mode: Custom charset wasn't used
+- Fixed display screen to show input queue when using custom charset or rules
 - Fixed double fclose() using AMDGPU-Pro on sysfs compatible platform: Leading to segfault
+- Fixed hash-mode 11400 = SIP digest authentication (MD5): Cracking of hashes which did not include *auth* or *auth-int* was broken
 - Fixed hex output of plaintext in case --outfile-format 4, 5, 6 or 7 was used
 - Fixed infinite loop when using --loopback in case all hashes have been cracked
 - Fixed kernel loops in --increment mode leading to slower performance
 - Fixed mask length check in hybrid attack-modes: Do not include hash-mode dependant mask length checks
-- Fixed display screen to show input queue when using custom charset or rules
+- Fixed parsing of hashes in case the last line did not include a linefeed character
+- Fixed potfile loading to accept blank passwords
+- Fixed runtime limit: No longer required so sample startup time after refactorization
+
+##
+## Workarounds
+##
+
+- Workaround added for Intel OpenCL runtime: GPU support is broken, skip the device unless user forces to enable it
 
 ##
 ## Technical
 ##
 
 - Building: Added hashcat32.dll and hashcat64.dll makefile targets for building hashcat windows libraries
+- Building: Added production flag in Makefile to disable all the GCC compiler options needed only for development
 - Building: Removed access to readlink() on FreeBSD
+- Building: For CYGWIN prefer to use "opencl.dll" (installed by drivers) instead of optional "cygOpenCL-1.dll"
+- Events: Added new event EVENT_WEAK_HASH_ALL_CRACKED if all hashes have been cracked during weak hash check
 - Hardware management: Switched matching ADL device with OpenCL device by using PCI bus, device and function
 - Hardware management: Switched matching NvAPI device with OpenCL device by using PCI bus, device and function
 - Hardware management: Switched matching NVML device with OpenCL device by using PCI bus, device and function
@@ -45,7 +132,9 @@
 - OpenCL Runtime: Updated hashcat.hctune for Iris Pro GPU on OSX
 - Potfile: In v3.10 already, the default potfile suffix changed but the note about was missing. The "hashcat.pot" became "hashcat.potfile"
 - Potfile: Added old potfile detection, show warning message
+- Returncode: Added dedicated returncode (see docs/status_codes.txt) for shutdowns caused by --runtime and checkpoint keypress
 - Sanity: Added sanity check to disallow --speed-only in combination with -i
+- Sanity: Added sanity check to disallow --loopback in combination with --runtime
 - Threads: Replaced all calls to ctime() with ctime_r() to ensure thread safety
 - Threads: Replaced all calls to strerror() with %m printf() GNU extension to ensure thread safety
 

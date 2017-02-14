@@ -84,9 +84,20 @@ int build_plain (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
       memcpy (plain_ptr, comb_buf, comb_len);
     }
 
+    int pw_max_combi;
+
+    if (hashconfig->pw_max < PW_DICTMAX)
+    {
+      pw_max_combi = hashconfig->pw_max;
+    }
+    else
+    {
+      pw_max_combi = PW_MAX;
+    }
+
     plain_len += comb_len;
 
-    if (plain_len > (int) hashconfig->pw_max) plain_len = (int) hashconfig->pw_max;
+    if (plain_len > pw_max_combi) plain_len = pw_max_combi;
   }
   else if (user_options->attack_mode == ATTACK_MODE_BF)
   {
@@ -284,12 +295,6 @@ int outfile_init (hashcat_ctx_t *hashcat_ctx)
   outfile_ctx->outfile_format   = user_options->outfile_format;
   outfile_ctx->outfile_autohex  = user_options->outfile_autohex;
 
-  const int rc = outfile_write_open (hashcat_ctx);
-
-  if (rc == -1) return -1;
-
-  outfile_write_close (hashcat_ctx);
-
   return 0;
 }
 
@@ -310,7 +315,7 @@ int outfile_write_open (hashcat_ctx_t *hashcat_ctx)
 
   if (fp == NULL)
   {
-    event_log_error (hashcat_ctx, "%s: %m", outfile_ctx->filename);
+    event_log_error (hashcat_ctx, "%s: %s", outfile_ctx->filename, strerror (errno));
 
     return -1;
   }
@@ -319,7 +324,7 @@ int outfile_write_open (hashcat_ctx_t *hashcat_ctx)
   {
     fclose (fp);
 
-    event_log_error (hashcat_ctx, "%s: %m", outfile_ctx->filename);
+    event_log_error (hashcat_ctx, "%s: %s", outfile_ctx->filename, strerror (errno));
 
     return -1;
   }
@@ -440,73 +445,4 @@ int outfile_write (hashcat_ctx_t *hashcat_ctx, const char *out_buf, const unsign
   }
 
   return tmp_len;
-}
-
-int outfile_and_hashfile (hashcat_ctx_t *hashcat_ctx)
-{
-  outfile_ctx_t        *outfile_ctx        = hashcat_ctx->outfile_ctx;
-  user_options_extra_t *user_options_extra = hashcat_ctx->user_options_extra;
-
-  char *hashfile = user_options_extra->hc_hash;
-
-  if (hashfile == NULL) return 0;
-
-  char *outfile = outfile_ctx->filename;
-
-  if (outfile == NULL) return 0;
-
-  hc_stat_t tmpstat_outfile;
-  hc_stat_t tmpstat_hashfile;
-
-  FILE *tmp_outfile_fp = fopen (outfile, "r");
-
-  if (tmp_outfile_fp)
-  {
-    hc_fstat (fileno (tmp_outfile_fp), &tmpstat_outfile);
-
-    fclose (tmp_outfile_fp);
-  }
-
-  FILE *tmp_hashfile_fp = fopen (hashfile, "r");
-
-  if (tmp_hashfile_fp)
-  {
-    hc_fstat (fileno (tmp_hashfile_fp), &tmpstat_hashfile);
-
-    fclose (tmp_hashfile_fp);
-  }
-
-  if (tmp_outfile_fp)
-  {
-    tmpstat_outfile.st_mode     = 0;
-    tmpstat_outfile.st_nlink    = 0;
-    tmpstat_outfile.st_uid      = 0;
-    tmpstat_outfile.st_gid      = 0;
-    tmpstat_outfile.st_rdev     = 0;
-    tmpstat_outfile.st_atime    = 0;
-
-    tmpstat_hashfile.st_mode    = 0;
-    tmpstat_hashfile.st_nlink   = 0;
-    tmpstat_hashfile.st_uid     = 0;
-    tmpstat_hashfile.st_gid     = 0;
-    tmpstat_hashfile.st_rdev    = 0;
-    tmpstat_hashfile.st_atime   = 0;
-
-    #if defined (_POSIX)
-    tmpstat_outfile.st_blksize  = 0;
-    tmpstat_outfile.st_blocks   = 0;
-
-    tmpstat_hashfile.st_blksize = 0;
-    tmpstat_hashfile.st_blocks  = 0;
-    #endif
-
-    if (memcmp (&tmpstat_outfile, &tmpstat_hashfile, sizeof (hc_stat_t)) == 0)
-    {
-      event_log_error (hashcat_ctx, "Hashfile and Outfile are not allowed to point to the same file");
-
-      return -1;
-    }
-  }
-
-  return 0;
 }
